@@ -8,7 +8,11 @@ import("../../gn/skia.gni")
 if (skia_use_ffmpeg) {
   config("public_decoder_config") {
     defines = [ "HAVE_VIDEO_DECODER" ]
-    include_dirs = [ "." ]
+    include_dirs = [ 
+      ".",
+       "$skia_ffmpeg_path" + "/include",
+    ]
+    lib_dirs = [ "$skia_ffmpeg_path" + "/lib"]
   }
 
   static_library("video_decoder") {
@@ -28,7 +32,11 @@ if (skia_use_ffmpeg) {
 
   config("public_encoder_config") {
     defines = [ "HAVE_VIDEO_ENCODER" ]
-    include_dirs = [ "." ]
+    include_dirs = [ 
+      ".",
+       "$skia_ffmpeg_path" + "/include",
+    ]
+    lib_dirs = [ "$skia_ffmpeg_path" + "/lib"]
   }
 
   static_library("video_encoder") {
