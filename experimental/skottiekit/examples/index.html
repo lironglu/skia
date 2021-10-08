@@ -10,7 +10,6 @@
 
   <script type="text/javascript" charset="utf-8">
     const bootTime = performance.now();
-    const cdn = 'https://storage.googleapis.com/skia-cdn/misc/';
     // loadKit resolves with SkottieKit.
     const loadKit = SkottieKitInit({
       locateFile: (file) => '/bin/'+file,
@@ -21,22 +20,38 @@
       console.log(`loaded Kit in ${(n - bootTime).toFixed(2)} ms`)
     });
 
-    const loadLegoJSON = fetch(cdn + 'lego_loader.json').then((resp) => {
-      return resp.text();
-    });
-    const loadPartyJSON = fetch(cdn + 'confetti.json').then((resp) => {
-      return resp.text();
-    });
-    const loadDrinksJSON = fetch(cdn + 'drinks.json').then((resp) => {
-      return resp.text();
-    });
-    const loadOnboardingJSON = fetch(cdn + 'onboarding.json').then((resp) => {
-      return resp.text();
-    });
+    const loadLottieAssets = async (url, assets) => {
+      return await Promise.all(assets.filter(asset => !asset.id.startsWith('comp_')).map(async (asset) => {
+        var fullName = `${asset.u}${asset.p}`;
+        var response = await fetch(`${url}/${fullName}`);
+        var buffer = await response.arrayBuffer();
+        return [asset.p, buffer];
+      }));
+    }
+
+    const loadLottie = async (url) => {
+      var lottieJson = await fetch(url).then((result) => {
+        return result.text();
+      });
+
+      var parentUrl = url.substring(0, url.lastIndexOf('/'));
+      var assets = await loadLottieAssets(parentUrl, JSON.parse(lottieJson).assets);
+      
+      if (assets.length > 0) {
+        console.log('lottieJson: ', lottieJson);
+      }
+
+      return {
+        json: lottieJson,
+        assets: assets,
+      }
+    }
 
     function SkottieDemo(values, canvasID, width=400, height=400) {
-      const [SkottieKit, legoJSON] = values;
-      const animation = SkottieKit.MakeManagedAnimation(legoJSON);
+      const [SkottieKit, lottie] = values;
+      var assets = Object.fromEntries(lottie.assets);
+      const animation = SkottieKit.MakeManagedAnimation(lottie.json, assets);
+
       const duration = animation.duration() * 1000;
       const size = animation.size();
 
@@ -64,6 +79,18 @@
       surface.requestAnimationFrame(drawFrame);
     }
 
+    const googleCdn = 'https://storage.googleapis.com/skia-cdn/misc/';
+    const arkieCdn = 'http://arkie-mocks.oss-cn-shanghai.aliyuncs.com/lottie/';
+    const name = 'bmw-baokuang';
+    const loadVideoJSON = loadLottie(`${arkieCdn}${name}/data.json`);
+    const loadLegoJSON = loadLottie(googleCdn + 'lego_loader.json');
+    const loadPartyJSON = loadLottie(googleCdn + 'confetti.json');
+    const loadDrinksJSON = loadLottie(googleCdn + 'drinks.json');
+    const loadOnboardingJSON = loadLottie(googleCdn + 'onboarding.json');
+
+    const videoAnimating = Promise.all([loadKit, loadVideoJSON]).then((values) => {
+      SkottieDemo(values, 'video', 400, 400);
+    });
     const legosAnimating = Promise.all([loadKit, loadLegoJSON]).then((values) => {
       SkottieDemo(values, 'legos', 400, 400);
     });
@@ -77,7 +104,7 @@
       SkottieDemo(values, 'onboarding', 400, 400);
     });
 
-    Promise.all([legosAnimating, partyAnimating, drinksAnimating, onboardingAnimating]).then(() => {
+    Promise.all([videoAnimating, legosAnimating, partyAnimating, drinksAnimating, onboardingAnimating]).then(() => {
       const frames = new Float64Array(100);
       let idx = 0;
       let now = performance.now();
@@ -110,8 +137,9 @@
 
 </head>
 <body>
-  <h1> SkottieKit</h1>
+  <h1>SkottieKit</h1>
 
+  <canvas id=video width=400 height=400></canvas>
   <canvas id=legos width=400 height=400></canvas>
   <canvas id=party width=400 height=400></canvas>
   <canvas id=drinks width=400 height=400></canvas>

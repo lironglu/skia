@@ -18,6 +18,7 @@
 #include "include/private/SkMutex.h"
 #include "include/private/SkTHash.h"
 
+#include <vector>
 #include <memory>
 
 class SkAnimCodecPlayer;
@@ -182,6 +183,32 @@ public:
                                            const char[] /* url  */) const {
         return nullptr;
     }
+};
+
+class AssetResourceProvider : public ResourceProvider {
+public:
+    ~AssetResourceProvider() override = default;
+
+    // Tried using a map, but that gave strange errors like
+    // https://emscripten.org/docs/porting/guidelines/function_pointer_issues.html
+    // Not entirely sure why, but perhaps the iterator in the map was
+    // confusing enscripten.
+    using AssetVec = std::vector<std::pair<SkString, sk_sp<SkData>>>;
+
+    static sk_sp<AssetResourceProvider> Make(AssetVec assets);
+
+    sk_sp<ImageAsset> loadImageAsset(const char[], const char name[], const char[]) const override;
+
+    sk_sp<SkData> loadFont(const char name[], const char[]) const override;
+
+private:
+    explicit AssetResourceProvider(AssetVec assets);
+
+    sk_sp<SkData> findAsset(const char name[]) const;
+
+    const AssetVec fAssets;
+
+    using INHERITED = ResourceProvider;
 };
 
 class FileResourceProvider final : public ResourceProvider {

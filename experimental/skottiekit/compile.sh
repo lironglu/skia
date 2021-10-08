@@ -55,7 +55,7 @@ else
   BUILD_TYPE="minimal"
   BUILD_CFG="\
     skia_enable_fontmgr_custom_embedded=false \
-    skia_enable_fontmgr_custom_empty=true \
+    skia_enable_fontmgr_custom_empty=false \
     skia_use_freetype=false \
     skia_use_libgifcodec=false \
     skia_use_harfbuzz=false \
@@ -68,9 +68,9 @@ fi
 
 if [[ $@ == *debug* ]]; then
   echo "Building a *${BUILD_TYPE}* Debug build"
-  EXTRA_CFLAGS="\"-DSK_DEBUG\""
-  RELEASE_CONF="-O0 --js-opts 0 -s DEMANGLE_SUPPORT=1 -s ASSERTIONS=1 -s GL_ASSERTIONS=1 -g4 \
-                --source-map-base /bin/ -DSK_DEBUG --pre-js $BASE_DIR/debug.js"
+  EXTRA_CFLAGS="\"-DSK_DEBUG\", \"-g\""
+  RELEASE_CONF="-O0 --js-opts 0 -s DEMANGLE_SUPPORT=1 -s ASSERTIONS=1 -s GL_ASSERTIONS=1 -g3 \
+                -DSK_DEBUG --pre-js $BASE_DIR/debug.js"
   BUILD_DIR=${BUILD_DIR:="out/skottiekit_debug"}
 elif [[ $@ == *profiling* ]]; then
   echo "Building a *${BUILD_TYPE}* build for profiling"
@@ -129,7 +129,7 @@ echo "Compiling bitcode"
   cxx=\"${EMCXX}\" \
   ar=\"${EMAR}\" \
   extra_cflags_cc=[\"-frtti\"] \
-  extra_cflags=[\"-s\", \"WARN_UNALIGNED=1\", \"-s\", \"MAIN_MODULE=1\",
+  extra_cflags=[\"-s\", \"-s\", \"MAIN_MODULE=1\",
     \"-DSKNX_NO_SIMD\", \"-DSK_DISABLE_AAA\",
     \"-DSK_DISABLE_EFFECT_DESERIALIZATION\",
     \"-DSK_FORCE_8_BYTE_ALIGNMENT\",
@@ -146,6 +146,7 @@ echo "Compiling bitcode"
   skia_use_angle=false \
   skia_use_dng_sdk=false \
   skia_use_egl=true \
+  skia_use_ffmpeg=true \
   skia_use_expat=false \
   skia_use_fontconfig=false \
   skia_use_libheif=false \
@@ -162,6 +163,7 @@ echo "Compiling bitcode"
   \
   ${GN_GPU} \
   \
+  skia_enable_skottie=true \
   skia_enable_skshaper=true \
   skia_enable_skgpu_v2=false \
   skia_enable_pdf=false"
@@ -174,11 +176,25 @@ export EMCC_CLOSURE_ARGS="--externs $BASE_DIR/externs.js "
 
 echo "Generating final wasm"
 
+FFMPEG_PATH="../FFmpeg"
+FFMPEG_CFG=" \
+  -L$FFMPEG_PATH/libswscale \
+  -L$FFMPEG_PATH/libavcodec \
+  -L$FFMPEG_PATH/libavformat \
+  -L$FFMPEG_PATH/libavutil \
+  -L$FFMPEG_PATH/libswresample \
+  -lswscale \
+  -lavcodec \
+  -lavformat \
+  -lavutil \
+  -lswresample"
+
 # Emscripten prefers that the .a files go last in order, otherwise, it
 # may drop symbols that it incorrectly thinks aren't used. One day,
 # Emscripten will use LLD, which may relax this requirement.
 ${EMCXX} \
     -I. \
+    $FFMPEG_CFG \
     $RELEASE_CONF \
     -DSK_DISABLE_AAA \
     -DSK_FORCE_8_BYTE_ALIGNMENT \
@@ -191,20 +207,19 @@ ${EMCXX} \
     --pre-js $BASE_DIR/interface.js \
     --pre-js $BASE_DIR/postamble.js \
     $BASE_DIR/skottiekit_bindings.cpp \
-    modules/skresources/src/SkResources.cpp \
     $MANAGED_SKOTTIE_BINDINGS \
     $BUILD_DIR/libskottie.a \
     $BUILD_DIR/libsksg.a \
     $BUILD_DIR/libskshaper.a \
     $BUILD_DIR/libskia.a \
+    -lm \
     -s ALLOW_MEMORY_GROWTH=1 \
+    -s ALLOW_UNIMPLEMENTED_SYSCALLS \
     -s EXPORT_NAME="SkottieKitInit" \
     -s FORCE_FILESYSTEM=0 \
-    -s FILESYSTEM=0 \
     -s MODULARIZE=1 \
     -s NO_EXIT_RUNTIME=1 \
     -s STRICT=1 \
-    -s INITIAL_MEMORY=128MB \
-    -s WARN_UNALIGNED=1 \
+    -s INITIAL_MEMORY=256MB \
     -s WASM=1 \
     -o $BUILD_DIR/skottiekit.js

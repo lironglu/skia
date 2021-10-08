@@ -26,13 +26,13 @@ python2 tools/git-sync-deps
 
 ### Install ffmpeg
 
-Skia depends on ffmpeg to render video. You can use Homebrew to install ffmpeg.
+Skia depends on ffmpeg to render video. You can use Homebrew to install [ffmpeg](https://ffmpeg.org/documentation.html).
 
 ```
 brew install ffmpeg
 ```
 
-It looks that supporting playing video in Lottie animation is still an experimental feature. So you need to config `experimental/ffmpeg/BUILD.gn` to be able to let compiler and linker know where to find header files and static libraries needed. So I added one argument `skia_ffmpeg_path` in `skia.gni` and modified `experimental/ffmpeg/BUILD.gn` to use those configurations.
+Supporting playing video in Lottie animation is still an experimental feature. So you need to config `experimental/ffmpeg/BUILD.gn` to be able to let compiler and linker know where to find header files and static libraries needed. So I changed build file and added one argument `skia_ffmpeg_path` in [skia.gni](./gn/skia.gni) and modified [experimental/ffmpeg/BUILD.gn](./experimental/ffmpeg/BUILD.gn) to use this setting. The default value of argument `skia_ffmpeg_path` is `getenv("FFMPEG_HOME")`. So you also need to add one system environment variable `FFMPEG_HOME` to specifiy ffmepg installation folder such as `/usr/local/Cellar/ffmpeg/4.4`.
 
 ### Generate build files
 
@@ -64,9 +64,23 @@ ninja -C out/release viewer
 
 ### Build Skia webassembly
 
-[skottiekit](./experimental/skottiekit/) is webassembly version of [skottie](./modules/skottie/). Be sure to set the EMSDK environment variable to the location of [Emscripten SDK](https://emscripten.org/docs/getting_started/downloads.html) before building skottiekit.
+[skottiekit](./experimental/skottiekit/) is webassembly version of [skottie](./modules/skottie/). Be sure to set the EMSDK environment variable to the location of [Emscripten SDK](https://emscripten.org/docs/getting_started/downloads.html) before building skottiekit. You can read [Emscripten Compiler Frontend (emcc)](https://emscripten.org/docs/tools_reference/emcc.html) to get details on emcc command line arguments.
 
-skottiekit is based on Makefile to build webassembly. All of build targets are defines in this [Makefile](./experimental/skottiekit/Makefile). 
+### Build ffmpeg using Emscripten
+
+In order to use ffmpeg in webassembly, ffmpeg needs to be built by Emscripten. It means ffmpeg static library files installed by Homebrew can't be used by webassembly. Please read [this article](https://jeromewu.github.io/build-ffmpeg-webassembly-version-part-2-compile-with-emscripten/) to get details on hwo to build ffmepg vebassembly version.
+
+Please go to the parent folder of skia source tree and run the following command to clone ffmpeg 4.4 source code.
+
+```
+git clone --depth 1 --branch release/4.4 https://github.com/FFmpeg/FFmpeg.git
+```
+
+If you want to use differnt folder, do remember modifying value of variable `FFMPEG_PATH` in file [experimental/skottiekit/compile.sh) to the correct folder.
+
+### Build skottiekit
+
+[skottiekit](./experimental/skottiekit/) is based on Makefile to build webassembly. All of build targets are defines in this [Makefile](./experimental/skottiekit/Makefile). 
 
 For example, run the following command to create release version of skottiekit in folder `out/skottiekit`.
 
@@ -81,11 +95,13 @@ Run the following command to start one Python http server to try skottiekit weba
 make serve
 ```
 
-Open `http://localhost:8000` to view try skottiekit webassembly in browser. If port `8000` is already occupied, please try port `8001`.
+Open `http://localhost:8000` to view try skottiekit webassembly in browser. Be sure to use browser supporting ES8 because `async` and `await` are used in file [experimental/skottiekit/examples/index.html](./experimental/skottiekit/examples/index.html).
+
+It is pitty that we can't set breakpoints in C++ source file if using source map created by emcc. So we use DWARF to debug webassembly. Please read [Debugging WebAssembly with modern tools](https://developer.chrome.com/blog/wasm-debugging-2020/) to get more details.
 
 ## View Lottie animation through Skia
 
-Skia provide [viewer too](./tools/viewer/) to view Lottie file. Assuming you already build `viewer` target, you can run the following command to open one Lottie file.
+Skia provide [viewer tool](./tools/viewer/) to view Lottie file. Assuming you already build `viewer` target, you can run the following command to open one Lottie file.
 
 ```
 out/release/viewer -f resources/skottie/skottie_sample_1.json

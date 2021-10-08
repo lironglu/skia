@@ -173,6 +173,51 @@ sk_sp<SkImage> MultiFrameImageAsset::getFrame(float t) {
     return fCachedFrame;
 }
 
+AssetResourceProvider::AssetResourceProvider(AssetVec assets)
+    : fAssets(std::move(assets)) {}
+
+sk_sp<AssetResourceProvider> AssetResourceProvider::Make(AssetVec assets) {
+    if (assets.empty()) {
+        return nullptr;
+    }
+
+    return sk_sp<AssetResourceProvider>(new AssetResourceProvider(std::move(assets)));
+}
+
+sk_sp<ImageAsset> AssetResourceProvider::loadImageAsset(const char[] /* path */,
+                                                        const char name[],
+                                                        const char[] /* id */) const {
+    auto data = this->findAsset(name);
+    if (auto image = skresources::MultiFrameImageAsset::Make(data)) {
+        return std::move(image);
+    }
+
+#if defined(HAVE_VIDEO_DECODER)
+    if (auto video = skresources::VideoAsset::Make(data)) {
+        return std::move(video);
+    }
+#endif
+
+    return nullptr;
+}
+
+sk_sp<SkData> AssetResourceProvider::loadFont(const char name[], const char[] /* url */) const {
+    // Same as images paths, we ignore font URLs.
+    return this->findAsset(name);
+}
+
+sk_sp<SkData> AssetResourceProvider::findAsset(const char name[]) const {
+    for (const auto& asset : fAssets) {
+        if (asset.first.equals(name)) {
+            return asset.second;
+        }
+    }
+
+    SkDebugf("Could not find %s\n", name);
+    return nullptr;
+}
+
+
 sk_sp<FileResourceProvider> FileResourceProvider::Make(SkString base_dir, bool predecode) {
     return sk_isdir(base_dir.c_str())
         ? sk_sp<FileResourceProvider>(new FileResourceProvider(std::move(base_dir), predecode))

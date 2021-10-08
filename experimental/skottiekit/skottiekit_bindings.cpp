@@ -52,57 +52,6 @@ using Float32Array = emscripten::val;
 #if SK_INCLUDE_MANAGED_SKOTTIE
 namespace {
 
-class SkottieAssetProvider : public skottie::ResourceProvider {
-public:
-    ~SkottieAssetProvider() override = default;
-
-    // Tried using a map, but that gave strange errors like
-    // https://emscripten.org/docs/porting/guidelines/function_pointer_issues.html
-    // Not entirely sure why, but perhaps the iterator in the map was
-    // confusing enscripten.
-    using AssetVec = std::vector<std::pair<SkString, sk_sp<SkData>>>;
-
-    static sk_sp<SkottieAssetProvider> Make(AssetVec assets) {
-        if (assets.empty()) {
-            return nullptr;
-        }
-
-        return sk_sp<SkottieAssetProvider>(new SkottieAssetProvider(std::move(assets)));
-    }
-
-    sk_sp<skottie::ImageAsset> loadImageAsset(const char[] /* path */,
-                                              const char name[],
-                                              const char[] /* id */) const override {
-        // For CK/Skottie we ignore paths & IDs, and identify images based solely on name.
-        if (auto data = this->findAsset(name)) {
-            return skresources::MultiFrameImageAsset::Make(std::move(data));
-        }
-
-        return nullptr;
-    }
-
-    sk_sp<SkData> loadFont(const char name[], const char[] /* url */) const override {
-        // Same as images paths, we ignore font URLs.
-        return this->findAsset(name);
-    }
-
-private:
-    explicit SkottieAssetProvider(AssetVec assets) : fAssets(std::move(assets)) {}
-
-    sk_sp<SkData> findAsset(const char name[]) const {
-        for (const auto& asset : fAssets) {
-            if (asset.first.equals(name)) {
-                return asset.second;
-            }
-        }
-
-        SkDebugf("Could not find %s\n", name);
-        return nullptr;
-    }
-
-    const AssetVec fAssets;
-};
-
 class ManagedAnimation final : public SkRefCnt {
 public:
     static sk_sp<ManagedAnimation> Make(const std::string& json,
@@ -409,7 +358,7 @@ EMSCRIPTEN_BINDINGS(Skottie) {
         const auto assetDatas = reinterpret_cast<uint8_t**>(dptr);
         const auto assetSizes = reinterpret_cast<size_t*  >(sptr);
 
-        SkottieAssetProvider::AssetVec assets;
+        skresources::AssetResourceProvider::AssetVec assets;
         assets.reserve(assetCount);
 
         for (size_t i = 0; i < assetCount; i++) {
@@ -420,7 +369,7 @@ EMSCRIPTEN_BINDINGS(Skottie) {
 
         return ManagedAnimation::Make(json,
                  skresources::DataURIResourceProviderProxy::Make(
-                    SkottieAssetProvider::Make(std::move(assets))));
+                    skresources::AssetResourceProvider::Make(std::move(assets))));
     }));
     constant("managed_skottie", true);
 #endif // SK_INCLUDE_MANAGED_SKOTTIE
